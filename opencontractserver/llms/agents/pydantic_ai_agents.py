@@ -150,9 +150,23 @@ def _make_similarity_search_tool(vector_store: Any, default_k: int = 8) -> Calla
         results = await vector_store.similarity_search(
             query, k=k, modalities=modalities
         )
+        scoped_document_id = getattr(vector_store, "document_id", None)
         for r in results:
             if not isinstance(r, dict):
                 continue
+            # Structural annotations are shared through a
+            # StructuralAnnotationSet, so their direct ``document_id`` is
+            # legitimately null.  A document-scoped vector store still has
+            # an unambiguous owning document; surface that real scope ID in
+            # the tool return so citations retain their document identity.
+            # Corpus-scoped stores have no such fallback and remain unchanged.
+            if (
+                r.get("document_id") is None
+                and isinstance(scoped_document_id, int)
+                and not isinstance(scoped_document_id, bool)
+                and scoped_document_id > 0
+            ):
+                r["document_id"] = scoped_document_id
             aid = r.get("annotation_id")
             # Real annotation PKs are positive ints; synthetic / ad-hoc
             # match IDs are negative and must not be persisted.
