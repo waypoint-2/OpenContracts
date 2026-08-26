@@ -1,5 +1,6 @@
 """Tests for PydanticAI agent implementations following modern patterns."""
 
+import asyncio
 import json
 import os
 import random
@@ -182,6 +183,35 @@ def test_extract_tool_return_sources_from_non_streaming_run() -> None:
         similarity_source,
         exact_source,
     ]
+
+
+def test_similarity_search_fills_structural_annotation_document_id() -> None:
+    """Document-scoped search identifies structural annotations' document."""
+
+    structural_source = {
+        "annotation_id": 12,
+        "document_id": None,
+        "corpus_id": 1,
+        "page": 1,
+        "content": "The agreement terminates before closing.",
+        "json": {"p": {"1": {"b": [1.0, 2.0, 3.0, 4.0]}}},
+        "similarity_score": 0.91,
+    }
+
+    vector_store = MagicMock()
+    vector_store.document_id = 7
+    vector_store.similarity_search = AsyncMock(return_value=[structural_source])
+    ctx = MagicMock()
+    ctx.deps.retrieved_annotation_ids = []
+
+    tool = pa_mod._make_similarity_search_tool(vector_store)
+    result = asyncio.run(tool(ctx, "termination rights"))
+
+    assert result[0]["document_id"] == 7
+    assert result[0]["annotation_id"] == 12
+    assert result[0]["json"] == structural_source["json"]
+    assert result[0]["similarity_score"] == 0.91
+    assert ctx.deps.retrieved_annotation_ids == [12]
 
 
 @pytest.mark.serial
