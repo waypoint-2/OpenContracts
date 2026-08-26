@@ -1,5 +1,6 @@
 """Tests for PydanticAI agent implementations following modern patterns."""
 
+import json
 import os
 import random
 from dataclasses import dataclass
