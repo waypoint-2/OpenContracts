@@ -132,7 +132,7 @@ def test_extract_tool_return_sources_from_non_streaming_run() -> None:
         "similarity_score": 0.93,
     }
     exact_source = {
-        "annotation_id": 102,
+        "annotation_id": -102,
         "document_id": 7,
         "corpus_id": 3,
         "page": 9,
