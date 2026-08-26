@@ -3826,7 +3826,10 @@ def _extract_tool_return_sources(run_result: Any) -> list[dict[str, Any]]:
                 if (
                     not isinstance(annotation_id, int)
                     or isinstance(annotation_id, bool)
-                    or annotation_id <= 0
+                    # Zero is the invalid/missing sentinel. Positive IDs are
+                    # persisted annotations; negative IDs are valid synthetic
+                    # citations produced by search_exact_text.
+                    or annotation_id == 0
                     or annotation_id in seen_annotation_ids
                 ):
                     continue
