@@ -831,7 +831,8 @@ class PydanticAICoreAgent(CoreAgentBase, TimelineStreamMixin):
 
         llm_response_content = str(run_result.output)
         sources = [
-            self._normalise_source(s) for s in getattr(run_result, "sources", [])
+            self._normalise_source(s)
+            for s in _extract_tool_return_sources(run_result)
         ]
         usage_data = _usage_to_dict(run_result.usage())
         timeline = _extract_tool_call_timeline(run_result)
@@ -3746,6 +3747,80 @@ def _extract_tool_call_timeline(run_result: Any) -> list[dict[str, Any]]:
             )
 
     return timeline
+
+
+def _extract_tool_return_sources(run_result: Any) -> list[dict[str, Any]]:
+    """Extract citation records from a non-streaming Pydantic AI run.
+
+    ``AgentRunResult`` does not expose a ``sources`` attribute. Citation-producing
+    tools instead record their return values in ``ToolReturnPart`` instances in
+    the run's messages. Read only the messages created by this run, then retain
+    the complete source mappings returned by ``similarity_search`` and
+    ``search_exact_text`` so annotation/document IDs, page, excerpt, geometry,
+    and similarity score survive normalisation unchanged.
+
+    Tool return content may be a native Python value or a JSON string depending
+    on the Pydantic AI/model adapter version. Malformed and unrelated tool
+    returns are ignored rather than breaking the chat response.
+    """
+
+    messages_fn = getattr(run_result, "new_messages", None)
+    if not callable(messages_fn):
+        messages_fn = getattr(run_result, "all_messages", None)
+    if not callable(messages_fn):
+        return []
+
+    try:
+        messages = messages_fn()
+    except Exception:
+        logger.warning(
+            "[_extract_tool_return_sources] Failed to read run_result messages",
+            exc_info=True,
+        )
+        return []
+
+    sources: list[dict[str, Any]] = []
+    seen_annotation_ids: set[int] = set()
+
+    for message in messages or []:
+        for part in getattr(message, "parts", None) or []:
+            if not isinstance(part, ToolReturnPart) or part.tool_name not in {
+                "similarity_search",
+                "search_exact_text",
+            }:
+                continue
+
+            content = part.content
+            if isinstance(content, str):
+                try:
+                    content = json.loads(content)
+                except (TypeError, ValueError):
+                    continue
+
+            if isinstance(content, dict):
+                content = content.get("results", content.get("sources", []))
+            if not isinstance(content, list):
+                continue
+
+            for source in content:
+                if hasattr(source, "model_dump"):
+                    source = source.model_dump()
+                if not isinstance(source, dict):
+                    continue
+
+                annotation_id = source.get("annotation_id")
+                if (
+                    not isinstance(annotation_id, int)
+                    or isinstance(annotation_id, bool)
+                    or annotation_id <= 0
+                    or annotation_id in seen_annotation_ids
+                ):
+                    continue
+
+                seen_annotation_ids.add(annotation_id)
+                sources.append(source)
+
+    return sources
 
 
 def _usage_to_dict(usage: Any) -> Optional[dict[str, Any]]:
