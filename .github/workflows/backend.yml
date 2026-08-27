@@ -117,7 +117,7 @@ jobs:
     needs: [changes, linter]
     # Same fail-open semantics as the linter gate above.
     if: always() && needs.linter.result == 'success' && (github.event_name == 'push' || needs.changes.outputs.backend != 'false')
-    runs-on: yuge
+    runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
       contents: read
