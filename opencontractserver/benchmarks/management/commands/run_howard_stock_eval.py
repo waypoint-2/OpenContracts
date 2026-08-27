@@ -24,6 +24,7 @@ from opencontractserver.benchmarks.adapters.howard_contract_suite import (
     HowardQuestion,
     load_howard_contract_suite,
 )
+from opencontractserver.annotations.models import Annotation
 from opencontractserver.corpuses.models import Corpus
 from opencontractserver.corpuses.services import CorpusDocumentService
 from opencontractserver.llms import agents
@@ -143,6 +144,7 @@ class Command(BaseCommand):
                 question,
                 corpus_documents=corpus_documents,
             )
+            sources = await _serialize_sources_with_document_ids(response.sources)
             result = {
                 "index": index,
                 "id": question.question_id,
@@ -155,7 +157,7 @@ class Command(BaseCommand):
                     question.expected_ground_truth_ids
                 ),
                 "answer": response.content,
-                "sources": [_serialize_source(source) for source in response.sources],
+                "sources": sources,
                 "metadata": response.metadata,
             }
             results.append(result)
@@ -376,6 +378,36 @@ def _serialize_source(value: Any) -> Any:
     if is_dataclass(value):
         return asdict(value)
     return str(value)
+
+
+async def _serialize_sources_with_document_ids(sources: list[Any]) -> list[Any]:
+    serialized = [_serialize_source(source) for source in sources]
+    annotation_ids = [
+        source.get("annotation_id")
+        for source in serialized
+        if isinstance(source, dict)
+        and isinstance(source.get("annotation_id"), int)
+        and source.get("annotation_id") > 0
+        and source.get("document_id") is None
+    ]
+    if not annotation_ids:
+        return serialized
+
+    def _load_document_ids() -> dict[int, int]:
+        return dict(
+            Annotation.objects.filter(id__in=annotation_ids).values_list(
+                "id", "document_id"
+            )
+        )
+
+    document_ids = await sync_to_async(_load_document_ids)()
+    for source in serialized:
+        if not isinstance(source, dict) or source.get("document_id") is not None:
+            continue
+        document_id = document_ids.get(source.get("annotation_id"))
+        if document_id is not None:
+            source["document_id"] = document_id
+    return serialized
 
 
 async def _load_corpus_document_descriptions(
