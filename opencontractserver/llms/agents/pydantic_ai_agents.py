@@ -3510,7 +3510,11 @@ class PydanticAICorpusAgent(PydanticAICoreAgent):
             return DocAnswer(
                 answer=accumulated_answer,
                 sources=captured_sources,
-                timeline=captured_timeline,
+                timeline=(
+                    captured_timeline
+                    if getattr(config, "include_nested_tool_timeline", True)
+                    else []
+                ),
             ).model_dump()
 
         list_docs_tool_wrapped = PydanticAIToolFactory.from_function(

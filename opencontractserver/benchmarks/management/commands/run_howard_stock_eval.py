@@ -211,16 +211,20 @@ async def _run_question_with_retries(
                 "persist": False,
                 "temperature": 0,
                 "similarity_top_k": options["similarity_top_k"],
+                "include_nested_tool_timeline": False,
             }
             if options["model"]:
                 agent_kwargs["model"] = options["model"]
             agent = await agents.for_corpus(**agent_kwargs)
-            return await agent.chat(
+            response = await agent.chat(
                 _build_question_prompt(
                     question,
                     corpus_documents=corpus_documents,
                 )
             )
+            if response.metadata.get("error"):
+                raise RuntimeError(str(response.metadata["error"]))
+            return response
         except Exception as exc:
             if attempt >= attempts:
                 raise
