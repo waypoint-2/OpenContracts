@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import time
+import re
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
@@ -65,6 +65,24 @@ class Command(BaseCommand):
             help="Seconds to sleep between questions to reduce provider rate limits.",
         )
         parser.add_argument(
+            "--question-retries",
+            type=int,
+            default=3,
+            help="Retry count for a question before failing the run.",
+        )
+        parser.add_argument(
+            "--retry-sleep-seconds",
+            type=float,
+            default=75.0,
+            help="Base seconds to sleep before retrying a failed question.",
+        )
+        parser.add_argument(
+            "--question-id",
+            action="append",
+            default=None,
+            help="Run only the given question ID. May be supplied multiple times.",
+        )
+        parser.add_argument(
             "--no-score",
             action="store_true",
             help="Skip deterministic scoring after writing the answer report.",
@@ -88,66 +106,78 @@ class Command(BaseCommand):
             corpus_id=options["corpus_id"],
             user=user,
         )
+        selected_question_ids = {
+            str(question_id).upper() for question_id in (options["question_id"] or ())
+        }
+        questions = [
+            question
+            for question in suite.questions
+            if not selected_question_ids
+            or question.question_id.upper() in selected_question_ids
+        ]
+        if not questions:
+            raise CommandError(
+                f"No Howard questions matched --question-id={options['question_id']!r}"
+            )
         results: list[dict[str, Any]] = []
+        metadata = {
+            "corpus_id": options["corpus_id"],
+            "question_count": len(questions),
+            "similarity_top_k": options["similarity_top_k"],
+            "started_at": timezone.now().isoformat(),
+            "selected_question_ids": sorted(selected_question_ids),
+        }
 
-        for index, question in enumerate(suite.questions, start=1):
+        for index, question in enumerate(questions, start=1):
             self.stdout.write(
-                f"QUESTION_START {index}/{len(suite.questions)} {question.question_id}"
+                f"QUESTION_START {index}/{len(questions)} {question.question_id}"
             )
-            agent_kwargs: dict[str, Any] = {
-                "corpus": options["corpus_id"],
-                "user_id": user.id,
-                "streaming": False,
-                "persist": False,
-                "temperature": 0,
-                "similarity_top_k": options["similarity_top_k"],
+            response = await _run_question_with_retries(
+                question=question,
+                corpus_documents=corpus_documents,
+                options=options,
+                user_id=user.id,
+                stdout=self.stdout,
+            )
+            targeted_documents = _target_documents_for_question(
+                question,
+                corpus_documents=corpus_documents,
+            )
+            result = {
+                "index": index,
+                "id": question.question_id,
+                "question": question.question,
+                "scope": question.scope,
+                "target_document_ids": [
+                    document["id"] for document in targeted_documents
+                ],
+                "expected_ground_truth_ids": list(
+                    question.expected_ground_truth_ids
+                ),
+                "answer": response.content,
+                "sources": [_serialize_source(source) for source in response.sources],
+                "metadata": response.metadata,
             }
-            if options["model"]:
-                agent_kwargs["model"] = options["model"]
-            agent = await agents.for_corpus(**agent_kwargs)
-            response = await agent.chat(
-                _build_question_prompt(
-                    question,
-                    corpus_documents=corpus_documents,
-                )
-            )
-            results.append(
+            results.append(result)
+            _write_answer_report(
+                output_path,
                 {
-                    "index": index,
-                    "id": question.question_id,
-                    "question": question.question,
-                    "scope": question.scope,
-                    "expected_ground_truth_ids": list(
-                        question.expected_ground_truth_ids
-                    ),
-                    "answer": response.content,
-                    "sources": [_serialize_source(source) for source in response.sources],
-                    "metadata": response.metadata,
-                }
+                    **metadata,
+                    "completed_question_count": len(results),
+                    "status": "partial"
+                    if len(results) < len(questions)
+                    else "complete",
+                    "results": results,
+                },
             )
             self.stdout.write(
-                f"QUESTION_DONE {index}/{len(suite.questions)} "
+                f"QUESTION_DONE {index}/{len(questions)} "
                 f"{question.question_id} sources={len(response.sources)} "
                 f"chars={len(response.content)}"
             )
-            if index < len(suite.questions) and options["sleep_between_questions"] > 0:
-                time.sleep(options["sleep_between_questions"])
+            if index < len(questions) and options["sleep_between_questions"] > 0:
+                await asyncio.sleep(options["sleep_between_questions"])
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            json.dumps(
-                {
-                    "corpus_id": options["corpus_id"],
-                    "question_count": len(suite.questions),
-                    "similarity_top_k": options["similarity_top_k"],
-                    "started_at": timezone.now().isoformat(),
-                    "results": results,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
         self.stdout.write(f"ANSWER_REPORT {output_path}")
 
         if not options["no_score"]:
@@ -163,13 +193,110 @@ class Command(BaseCommand):
             )
 
 
+async def _run_question_with_retries(
+    *,
+    question: HowardQuestion,
+    corpus_documents: list[dict[str, Any]],
+    options: dict[str, Any],
+    user_id: int,
+    stdout,
+):
+    attempts = max(int(options["question_retries"]) + 1, 1)
+    for attempt in range(1, attempts + 1):
+        try:
+            agent_kwargs: dict[str, Any] = {
+                "corpus": options["corpus_id"],
+                "user_id": user_id,
+                "streaming": False,
+                "persist": False,
+                "temperature": 0,
+                "similarity_top_k": options["similarity_top_k"],
+            }
+            if options["model"]:
+                agent_kwargs["model"] = options["model"]
+            agent = await agents.for_corpus(**agent_kwargs)
+            return await agent.chat(
+                _build_question_prompt(
+                    question,
+                    corpus_documents=corpus_documents,
+                )
+            )
+        except Exception as exc:
+            if attempt >= attempts:
+                raise
+            retry_after = _retry_after_seconds(exc)
+            sleep_for = max(
+                retry_after or 0,
+                float(options["retry_sleep_seconds"]) * attempt,
+            )
+            stdout.write(
+                f"QUESTION_RETRY {question.question_id} attempt={attempt} "
+                f"sleep_seconds={sleep_for:.1f} error={exc.__class__.__name__}"
+            )
+            await asyncio.sleep(sleep_for)
+
+    raise RuntimeError(f"Question {question.question_id} failed unexpectedly")
+
+
+def _write_answer_report(output_path: Path, payload: dict[str, Any]) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    match = re.search(r"try again in ([0-9.]+)s", str(exc), flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return float(match.group(1)) + 5.0
+    except ValueError:
+        return None
+
+
+def _target_documents_for_question(
+    question: HowardQuestion,
+    *,
+    corpus_documents: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_key = {str(document.get("fixture_key")): document for document in corpus_documents}
+    key_sets = {
+        "msa_2007": ("msa_2007",),
+        "sow_2008": ("sow_2008",),
+        "amendment_2011": ("amendment_2011",),
+        "Q01": ("msa_2007", "sow_2008", "amendment_2011"),
+        "Q02": ("msa_2007", "sow_2008", "amendment_2011"),
+        "Q05": ("msa_2007", "sow_2008"),
+        "Q07": ("sow_2008", "amendment_2011"),
+        "Q13": ("msa_2007", "sow_2008", "amendment_2011"),
+        "Q15": ("msa_2007", "sow_2008", "amendment_2011"),
+    }
+    keys = key_sets.get(question.question_id) or key_sets.get(question.scope)
+    if not keys:
+        return corpus_documents
+    return [by_key[key] for key in keys if key in by_key]
+
+
 def _build_question_prompt(
     question: HowardQuestion,
     *,
     corpus_documents: list[dict[str, Any]],
 ) -> str:
     documents = "\n".join(
-        _format_document_line(document) for document in corpus_documents
+        _format_document_line(document)
+        for document in _target_documents_for_question(
+            question,
+            corpus_documents=corpus_documents,
+        )
+    )
+    target_ids = ", ".join(
+        str(document["id"])
+        for document in _target_documents_for_question(
+            question,
+            corpus_documents=corpus_documents,
+        )
     )
     cross_document_instruction = (
         "This is a cross-document question. Search or inspect each relevant "
@@ -188,6 +315,10 @@ def _build_question_prompt(
         "Source location/page/annotation, Supporting text, Confidence, "
         "Conflicts, Unknowns.\n\n"
         "Rules:\n"
+        f"- Use only these document IDs for this question: {target_ids}.\n"
+        "- Prefer targeted similarity_search and short exact-text searches; "
+        "load bulk document text only when the searched annotations are "
+        "insufficient.\n"
         "- Cite the exact source document title or fixture key for every "
         "substantive claim.\n"
         "- Include page and annotation IDs when the tools provide them.\n"
