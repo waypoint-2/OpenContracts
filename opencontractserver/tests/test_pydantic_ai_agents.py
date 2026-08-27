@@ -15,8 +15,8 @@ from django.utils import timezone
 from pydantic import BaseModel
 from pydantic_ai.agent import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
-from pydantic_ai.models.test import TestModel
 from pydantic_ai.messages import ModelRequest, ToolReturnPart
+from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
 
