@@ -3797,25 +3797,18 @@ def _extract_tool_return_sources(run_result: Any) -> list[dict[str, Any]]:
 
     for message in messages or []:
         for part in getattr(message, "parts", None) or []:
-            if not isinstance(part, ToolReturnPart) or part.tool_name not in {
-                "similarity_search",
-                "search_exact_text",
-            }:
+            if not isinstance(part, ToolReturnPart):
                 continue
 
-            content = part.content
-            if isinstance(content, str):
-                try:
-                    content = json.loads(content)
-                except (TypeError, ValueError):
-                    continue
-
-            if isinstance(content, dict):
-                content = content.get("results", content.get("sources", []))
-            if not isinstance(content, list):
+            content = _decode_tool_return_content(part.content)
+            if part.tool_name in {"similarity_search", "search_exact_text"}:
+                raw_sources = _sources_from_search_tool_return(content)
+            elif part.tool_name == "ask_document":
+                raw_sources = _sources_from_ask_document_return(content)
+            else:
                 continue
 
-            for source in content:
+            for source in raw_sources:
                 if hasattr(source, "model_dump"):
                     source = source.model_dump()
                 if not isinstance(source, dict):
@@ -3837,6 +3830,28 @@ def _extract_tool_return_sources(run_result: Any) -> list[dict[str, Any]]:
                 sources.append(source)
 
     return sources
+
+
+def _decode_tool_return_content(content: Any) -> Any:
+    if isinstance(content, str):
+        try:
+            return json.loads(content)
+        except (TypeError, ValueError):
+            return content
+    return content
+
+
+def _sources_from_search_tool_return(content: Any) -> list[Any]:
+    if isinstance(content, dict):
+        content = content.get("results", content.get("sources", []))
+    return content if isinstance(content, list) else []
+
+
+def _sources_from_ask_document_return(content: Any) -> list[Any]:
+    if not isinstance(content, dict):
+        return []
+    raw_sources = content.get("sources", [])
+    return raw_sources if isinstance(raw_sources, list) else []
 
 
 def _usage_to_dict(usage: Any) -> Optional[dict[str, Any]]:
