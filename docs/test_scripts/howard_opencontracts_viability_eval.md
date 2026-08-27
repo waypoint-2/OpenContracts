@@ -9,7 +9,7 @@ infrastructure.
 Fixture root:
 
 ```bash
-fixtures/benchmarks/howard_expedia_trx
+opencontractserver/benchmarks/fixtures/howard_expedia_trx
 ```
 
 Public SEC source documents:
@@ -22,8 +22,9 @@ Public SEC source documents:
 
 The fixture PDFs are stable text-preserving renders from the visible SEC HTML
 exhibits. If regenerating them, fetch the same SEC pages, preserve the visible
-text, and place the PDFs under `fixtures/benchmarks/howard_expedia_trx/corpus/`
-using the filenames in `source_manifest.json`.
+text, and place the PDFs under
+`opencontractserver/benchmarks/fixtures/howard_expedia_trx/corpus/` using the
+filenames in `source_manifest.json`.
 
 Do not repair or infer redacted text. Redactions are part of the test.
 

@@ -16,7 +16,7 @@ from typing import Any
 
 
 DEFAULT_FIXTURE_ROOT = (
-    Path(__file__).resolve().parents[3] / "fixtures/benchmarks/howard_expedia_trx"
+    Path(__file__).resolve().parents[1] / "fixtures/howard_expedia_trx"
 )
 
 
