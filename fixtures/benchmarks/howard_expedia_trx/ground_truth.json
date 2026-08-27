@@ -1,0 +1,191 @@
+{
+  "id": "howard-expedia-trx-ground-truth-v1",
+  "verification_standard": "Human-verified from the SEC HTML exhibits before ingestion. Final run verification must compare model claims to exact text stored in OpenContracts after parsing.",
+  "claims": [
+    {
+      "id": "GT_PARTIES_MSA",
+      "topic": "parties",
+      "claim": "The MSA is between Expedia, Inc., a Washington corporation, and TRX, Inc., a Georgia corporation.",
+      "source_document": "msa_2007",
+      "source_location": "opening paragraph, page 1",
+      "supporting_text": "This Master Services Agreement is made as of January 1, 2007 by and between Expedia, Inc. and TRX, Inc.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_PARTIES_SOW",
+      "topic": "parties",
+      "claim": "The 2008 SOW is between Expedia, Inc. and TRX, Inc. plus TRX Germany GmbH, together defined as TRX.",
+      "source_document": "sow_2008",
+      "source_location": "opening paragraph, page 1",
+      "supporting_text": "The SOW is made between Expedia, Inc. and TRX, Inc., and TRX Germany GmbH (together, TRX).",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_PARTIES_AMENDMENT",
+      "topic": "parties",
+      "claim": "Amendment No. 2 is between Expedia, Inc. and TRX, Inc. plus TRX Germany GmbH, together defined as TRX.",
+      "source_document": "amendment_2011",
+      "source_location": "opening paragraph, page 1",
+      "supporting_text": "The Amendment is dated and effective as of March 1, 2011 by and between Expedia, Inc. and TRX, Inc., and TRX Germany GmbH (together, TRX).",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_EFFECTIVE_DATES",
+      "topic": "effective_dates",
+      "claim": "The MSA is effective January 1, 2007; the amended and restated SOW is dated and effective January 1, 2008; Amendment No. 2 is dated and effective March 1, 2011.",
+      "source_document": "cross_document",
+      "source_location": "opening paragraphs of all three documents",
+      "supporting_text": "Each opening paragraph states its effective date.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_MSA_TERM_RENEWAL",
+      "topic": "term_and_renewal",
+      "claim": "The MSA initial term runs from January 1, 2007 until the earlier of December 31, 2010 or termination under Article 11, then automatically renews for one-year renewal terms unless either party gives at least 12 months' prior written non-renewal notice.",
+      "source_document": "msa_2007",
+      "source_location": "Article 2, Sections 2.1-2.2, page 1",
+      "supporting_text": "The term commences on the Effective Date and continues until the earlier of December 31, 2010 or termination; thereafter it renews automatically for one-year periods absent 12 months' prior written notice.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_MSA_SOW_PRECEDENCE",
+      "topic": "order_of_precedence",
+      "claim": "Each SOW is subject to and becomes part of the MSA, but the 2008 SOW states that if there is a conflict or inconsistency about services under that SOW, the SOW terms take precedence.",
+      "source_document": "sow_2008",
+      "source_location": "opening paragraph, page 1",
+      "supporting_text": "The SOW says it is subject to and incorporated into the MSA, and that SOW terms take precedence for conflicts regarding services under the SOW.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_SOW_PRIOR_SUPERSESSION",
+      "topic": "supersession",
+      "claim": "The 2008 amended and restated SOW supersedes and replaces the prior January 1, 2007 SOW on the same subject matter.",
+      "source_document": "sow_2008",
+      "source_location": "opening paragraph, page 1",
+      "supporting_text": "For avoidance of doubt, this Statement of Work supersedes and replaces the Prior SOW.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_SOW_TERMINATION_RIGHTS",
+      "topic": "termination",
+      "claim": "In addition to MSA termination rights, Expedia may terminate the 2008 SOW for good cause as defined in Article 627 of the German Civil Code, or on six months' prior written notice to TRX.",
+      "source_document": "sow_2008",
+      "source_location": "Section 3.2, page 2",
+      "supporting_text": "Expedia may terminate this Statement of Work upon written notice for good cause and upon six months' prior written notice.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_MSA_PAYMENT_MECHANICS",
+      "topic": "payment",
+      "claim": "The MSA requires Expedia to prepay forecasted fees before the last business day of each month, TRX to invoice actual service fees on or before the 15th day after each month closes, and Expedia to pay undisputed amounts by electronic funds transfer, with the exact payment timing redacted.",
+      "source_document": "msa_2007",
+      "source_location": "Article 7, Sections 7.2-7.4",
+      "supporting_text": "The MSA describes monthly forecast prepayment, monthly actual invoicing by the 15th day after month-end, and payment by electronic funds transfer; the payment deadline is redacted.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": ["Exact timing for payment under Section 7.4 is redacted."]
+    },
+    {
+      "id": "GT_SOW_PRICING",
+      "topic": "payment",
+      "claim": "The 2008 SOW says pricing is listed in Attachment 3, payment follows MSA Section 7, pricing is effective January 1, 2008, and certain charges may adjust annually in line with the German Price Index, with adjustments effective April 1 each year on a compound basis commencing from January 2009; many actual prices and volumes are redacted.",
+      "source_document": "sow_2008",
+      "source_location": "Sections 2.1-2.3 and Attachment 3",
+      "supporting_text": "The SOW points pricing to Attachment 3, incorporates MSA payment terms, and states annual adjustment mechanics tied to the German Price Index. The parallel German text adds that Expedia pays the lower amount under the German Price Index or TRX costs.",
+      "confidence": "medium",
+      "conflicts": ["The English pricing clause is the operative interpretive text under Section 4.7; the parallel German text includes an additional lower-of formulation."],
+      "unknowns": ["Most price amounts, activity definitions, volumes, and thresholds are redacted."]
+    },
+    {
+      "id": "GT_SOW_OPERATIONAL_DEADLINES",
+      "topic": "deliverables_and_deadlines",
+      "claim": "The 2008 SOW includes deadlines to deploy mutually agreeable workforce management software by March 31, 2008; call center technology by July 1, 2008 pending Works Council approval; a quality assurance team by February 29, 2008; a business analyst by February 29, 2008; and a dedicated trainer by February 29, 2008.",
+      "source_document": "sow_2008",
+      "source_location": "Sections 4.10-4.14, page 3",
+      "supporting_text": "Sections 4.10 through 4.14 state those deployment and staffing deadlines.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": ["Several technology and staffing details are redacted."]
+    },
+    {
+      "id": "GT_SOW_LANGUAGE_PRECEDENCE",
+      "topic": "language_precedence",
+      "claim": "For SOW clauses containing English and German text, the English version prevails for interpretation.",
+      "source_document": "sow_2008",
+      "source_location": "Section 4.7, page 2",
+      "supporting_text": "With respect to interpretation of such clauses, the English version shall prevail.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_AMENDMENT_TRANSITION_TIMELINE",
+      "topic": "deliverables_and_deadlines",
+      "claim": "Amendment No. 2 says TRX will reasonably cooperate and assist Expedia with a redacted effort expected to commence April 25, 2011 and be completed no later than October 31, 2011, unless otherwise mutually agreed.",
+      "source_document": "amendment_2011",
+      "source_location": "Section 2, page 1",
+      "supporting_text": "Expedia expects the redacted effort to commence on April 25, 2011 and be completed no later than 31 October 2011.",
+      "confidence": "medium",
+      "conflicts": [],
+      "unknowns": ["The nature of the effort is redacted."]
+    },
+    {
+      "id": "GT_AMENDMENT_REPLACES_SECTION_1_1",
+      "topic": "supersession",
+      "claim": "Effective October 31, 2011, Amendment No. 2 deletes Section 1.1 of the SOW in its entirety and replaces it with a new Section 1.1 Scope provision.",
+      "source_document": "amendment_2011",
+      "source_location": "Section 3, page 1",
+      "supporting_text": "Effective 31 October 2011, Section 1.1 of the Statement of Work shall be deleted in its entirety and replaced.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": ["The replacement scope contains redactions."]
+    },
+    {
+      "id": "GT_AMENDMENT_CONTINUING_EFFECT",
+      "topic": "continuing_effect",
+      "claim": "Except as modified by Amendment No. 2, the SOW remains in full force and effect, and unless otherwise stated the MSA terms govern and control the amendment.",
+      "source_document": "amendment_2011",
+      "source_location": "Sections 5 and signature preamble, page 2",
+      "supporting_text": "The Statement of Work, as modified by this Amendment, shall remain in full force and effect.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": []
+    },
+    {
+      "id": "GT_REDACTIONS_UNKNOWN",
+      "topic": "unknowns",
+      "claim": "The public exhibits redact numerous material details, including portions of services, service locations, service levels, prices, volumes, thresholds, technology details, and the specific subject of the 2011 transition/cooperation obligation.",
+      "source_document": "cross_document",
+      "source_location": "throughout the three public exhibits",
+      "supporting_text": "The exhibits repeatedly replace confidential terms with asterisks.",
+      "confidence": "high",
+      "conflicts": [],
+      "unknowns": ["Redacted terms cannot be recovered from these public documents."]
+    }
+  ],
+  "acceptance_thresholds": {
+    "citation_resolution": 1.0,
+    "unsupported_substantive_claims": 0,
+    "parties_dates_money_controlling_terms_accuracy": 1.0,
+    "overall_answer_accuracy": 0.9,
+    "amendment_supersession_required": true,
+    "explicit_uncertainty_for_unanswered_questions": true,
+    "minimum_repeated_runs": 3
+  }
+}

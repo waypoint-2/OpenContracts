@@ -1,0 +1,70 @@
+{
+  "id": "howard-expedia-trx-v1",
+  "title": "Howard viability package: Expedia/TRX services contract family",
+  "description": "Three related public SEC exhibits used to evaluate whether stock OpenContracts plus a frontier model can answer evidence-grounded single-document and cross-document legal questions.",
+  "source_type": "sec-edgar-public-exhibits",
+  "documents": [
+    {
+      "key": "msa_2007",
+      "title": "Expedia/TRX Master Services Agreement",
+      "filename": "expedia_trx_msa_2007.pdf",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1103025/000119312507035944/dex1015.htm",
+      "filing_accession": "0001193125-07-035944",
+      "exhibit": "10.15",
+      "source_html_title": "Master Services Agreement between Expedia Inc. and TRX",
+      "expected_material_terms": [
+        "parties",
+        "effective_date",
+        "term_and_renewal",
+        "services_framework",
+        "change_order_process",
+        "payment_terms",
+        "service_levels",
+        "termination"
+      ]
+    },
+    {
+      "key": "sow_2008",
+      "title": "Expedia/TRX Amended and Restated Statement of Work for Contact Center Services",
+      "filename": "expedia_trx_contact_center_sow_2008.pdf",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1103025/000119312511141447/dex102.htm",
+      "filing_accession": "0001193125-11-141447",
+      "exhibit": "10.2",
+      "source_html_title": "Amended and Restated Statement of Work for Contact Center Services",
+      "expected_material_terms": [
+        "parties",
+        "effective_date",
+        "incorporated_msa",
+        "prior_sow_superseded",
+        "services_scope",
+        "pricing",
+        "sow_termination",
+        "operational_deadlines",
+        "language_precedence"
+      ]
+    },
+    {
+      "key": "amendment_2011",
+      "title": "Expedia/TRX Amendment No. 2 to Amended and Restated Statement of Work",
+      "filename": "expedia_trx_contact_center_sow_amendment_2_2011.pdf",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1103025/000119312511307073/d233980dex106.htm",
+      "filing_accession": "0001193125-11-307073",
+      "exhibit": "10.6",
+      "source_html_title": "Amendment No. 2 to the Amended and Restated Statement of Work - Contact Center Services",
+      "expected_material_terms": [
+        "parties",
+        "effective_date",
+        "amended_document",
+        "transition_deadline",
+        "section_1_1_replacement",
+        "continuing_effect"
+      ]
+    }
+  ],
+  "fixture_notes": [
+    "The committed corpus PDFs are stable text-preserving renders from the visible SEC exhibit pages listed above.",
+    "Use stable rendered PDFs for every run so parsing differences reflect OpenContracts changes rather than upstream website rendering changes.",
+    "If regenerating, fetch the same SEC pages, preserve the visible text, and write to the same PDF filenames under corpus/.",
+    "Do not replace the public redactions marked with asterisks; unanswered redacted terms are part of the evaluation."
+  ]
+}
