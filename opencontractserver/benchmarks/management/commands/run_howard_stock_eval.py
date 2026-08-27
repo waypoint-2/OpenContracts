@@ -27,6 +27,7 @@ from opencontractserver.benchmarks.adapters.howard_contract_suite import (
 from opencontractserver.annotations.models import Annotation
 from opencontractserver.corpuses.models import Corpus
 from opencontractserver.corpuses.services import CorpusDocumentService
+from opencontractserver.documents.models import DocumentPath
 from opencontractserver.llms import agents
 
 
@@ -144,7 +145,10 @@ class Command(BaseCommand):
                 question,
                 corpus_documents=corpus_documents,
             )
-            sources = await _serialize_sources_with_document_ids(response.sources)
+            sources = await _serialize_sources_with_document_ids(
+                response.sources,
+                corpus_id=options["corpus_id"],
+            )
             result = {
                 "index": index,
                 "id": question.question_id,
@@ -380,7 +384,11 @@ def _serialize_source(value: Any) -> Any:
     return str(value)
 
 
-async def _serialize_sources_with_document_ids(sources: list[Any]) -> list[Any]:
+async def _serialize_sources_with_document_ids(
+    sources: list[Any],
+    *,
+    corpus_id: int,
+) -> list[Any]:
     serialized = [_serialize_source(source) for source in sources]
     annotation_ids = [
         source.get("annotation_id")
@@ -394,11 +402,40 @@ async def _serialize_sources_with_document_ids(sources: list[Any]) -> list[Any]:
         return serialized
 
     def _load_document_ids() -> dict[int, int]:
-        return dict(
+        annotations = list(
             Annotation.objects.filter(id__in=annotation_ids).values_list(
-                "id", "document_id"
+                "id",
+                "document_id",
+                "structural_set_id",
             )
         )
+        direct_document_ids = {
+            annotation_id: document_id
+            for annotation_id, document_id, _structural_set_id in annotations
+            if document_id is not None
+        }
+        structural_set_ids = {
+            structural_set_id
+            for _annotation_id, document_id, structural_set_id in annotations
+            if document_id is None and structural_set_id is not None
+        }
+        structural_set_document_ids = {
+            structural_set_id: document_id
+            for structural_set_id, document_id in DocumentPath.objects.filter(
+                corpus_id=corpus_id,
+                is_current=True,
+                is_deleted=False,
+                document__structural_annotation_set_id__in=structural_set_ids,
+            ).values_list("document__structural_annotation_set_id", "document_id")
+        }
+        document_ids = {}
+        for annotation_id, _document_id, structural_set_id in annotations:
+            document_id = direct_document_ids.get(
+                annotation_id
+            ) or structural_set_document_ids.get(structural_set_id)
+            if document_id is not None:
+                document_ids[annotation_id] = document_id
+        return document_ids
 
     document_ids = await sync_to_async(_load_document_ids)()
     for source in serialized:
