@@ -356,6 +356,15 @@ def _topic_instruction(question: HowardQuestion) -> str:
             "Amendment parties; do not apply TRX Germany GmbH to the MSA unless "
             "the MSA text itself says so."
         )
+    if "fully disclose" in text or "redactions" in text:
+        return (
+            "Disclosure/redaction questions must use targeted searches only: "
+            "search for pricing, service location, services, attachment headings, "
+            "CONFIDENTIAL TREATMENT REQUESTED, and asterisk redaction markers in "
+            "each relevant document. Do not use load_document_text for these "
+            "questions; it is too broad for the batch eval and exact redaction "
+            "markers plus section hits are sufficient."
+        )
     if "pricing" in text or "charge adjustments" in text:
         return (
             "Pricing questions must check pricing location, payment-term cross "
