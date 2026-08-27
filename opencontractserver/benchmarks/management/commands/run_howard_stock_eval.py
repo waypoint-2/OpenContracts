@@ -10,19 +10,22 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from opencontractserver.benchmarks.howard_scoring import (
+    score_howard_stock_eval,
+    write_howard_score_report,
+)
 from opencontractserver.benchmarks.adapters.howard_contract_suite import (
     DEFAULT_FIXTURE_ROOT,
     HowardQuestion,
     load_howard_contract_suite,
 )
-from opencontractserver.benchmarks.howard_scoring import (
-    score_howard_stock_eval,
-    write_howard_score_report,
-)
+from opencontractserver.corpuses.models import Corpus
+from opencontractserver.corpuses.services import CorpusDocumentService
 from opencontractserver.llms import agents
 
 
@@ -81,6 +84,10 @@ class Command(BaseCommand):
         output_path = options["output"] or _default_answer_report_path(
             corpus_id=options["corpus_id"]
         )
+        corpus_documents = await _load_corpus_document_descriptions(
+            corpus_id=options["corpus_id"],
+            user=user,
+        )
         results: list[dict[str, Any]] = []
 
         for index, question in enumerate(suite.questions, start=1):
@@ -98,7 +105,12 @@ class Command(BaseCommand):
             if options["model"]:
                 agent_kwargs["model"] = options["model"]
             agent = await agents.for_corpus(**agent_kwargs)
-            response = await agent.chat(_build_question_prompt(suite, question))
+            response = await agent.chat(
+                _build_question_prompt(
+                    question,
+                    corpus_documents=corpus_documents,
+                )
+            )
             results.append(
                 {
                     "index": index,
@@ -151,9 +163,13 @@ class Command(BaseCommand):
             )
 
 
-def _build_question_prompt(suite, question: HowardQuestion) -> str:
+def _build_question_prompt(
+    question: HowardQuestion,
+    *,
+    corpus_documents: list[dict[str, Any]],
+) -> str:
     documents = "\n".join(
-        f"- {document.key}: {document.title}" for document in suite.documents
+        _format_document_line(document) for document in corpus_documents
     )
     cross_document_instruction = (
         "This is a cross-document question. Search or inspect each relevant "
@@ -225,6 +241,31 @@ def _serialize_source(value: Any) -> Any:
     if hasattr(value, "to_dict"):
         return value.to_dict()
     return str(value)
+
+
+async def _load_corpus_document_descriptions(
+    *,
+    corpus_id: int,
+    user,
+) -> list[dict[str, Any]]:
+    def _load() -> list[dict[str, Any]]:
+        corpus = Corpus.objects.get(id=corpus_id)
+        documents = CorpusDocumentService.get_corpus_documents(user=user, corpus=corpus)
+        return [
+            {
+                "id": document.id,
+                "title": document.title,
+                "fixture_key": (document.custom_meta or {}).get("howard_fixture_key"),
+            }
+            for document in documents
+        ]
+
+    return await sync_to_async(_load)()
+
+
+def _format_document_line(document: dict[str, Any]) -> str:
+    key = document.get("fixture_key") or "unknown_fixture"
+    return f"- document_id={document['id']} {key}: {document['title']}"
 
 
 def _default_answer_report_path(*, corpus_id: int) -> Path:
