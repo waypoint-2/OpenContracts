@@ -371,10 +371,10 @@ def _topic_instruction(question: HowardQuestion) -> str:
 
 
 def _serialize_source(value: Any) -> Any:
-    if is_dataclass(value):
-        return asdict(value)
     if hasattr(value, "to_dict"):
         return value.to_dict()
+    if is_dataclass(value):
+        return asdict(value)
     return str(value)
 
 

@@ -382,11 +382,17 @@ def _term_present(normalized_text: str, term: str) -> bool:
 
 def _source_text(source: dict[str, Any]) -> str:
     block_context = source.get("block_context")
+    metadata = source.get("metadata")
+    if not isinstance(block_context, dict) and isinstance(metadata, dict):
+        block_context = metadata.get("block_context")
     return " ".join(
         str(part or "")
         for part in (
             source.get("content"),
+            source.get("rawText"),
             source.get("search_string"),
+            metadata.get("content") if isinstance(metadata, dict) else "",
+            metadata.get("search_string") if isinstance(metadata, dict) else "",
             block_context.get("block_text") if isinstance(block_context, dict) else "",
         )
     )
