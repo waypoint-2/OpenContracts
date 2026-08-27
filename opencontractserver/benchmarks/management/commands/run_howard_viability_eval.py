@@ -167,6 +167,9 @@ class Command(BaseCommand):
             and doc.get("document_embedding_present")
             and doc.get("text_length", 0) > 0
             and doc.get("annotation_count", 0) > 0
+            and doc.get("annotation_embedding_count", 0) > 0
+            and doc.get("relationship_count", 0) > 0
+            and doc.get("relationship_embedding_count", 0) > 0
             for doc in report["documents"]
         )
 
@@ -219,18 +222,9 @@ class Command(BaseCommand):
         )
         source_doc.refresh_from_db()
 
-        embedding_present = False
-        if processing_status == DocumentProcessingStatus.COMPLETED:
-            embedding_present = _wait_for_document_embedding(
-                source_doc.id,
-                embedder_path=embedder_path,
-                dimension=dimension,
-                timeout_seconds=embedding_timeout_seconds,
-            )
-            source_doc.refresh_from_db()
-
         corpus_doc = None
         status = "not_added"
+        embedding_present = False
         if processing_status == DocumentProcessingStatus.COMPLETED:
             corpus_doc, status, error = CorpusDocumentService.add_document_to_corpus(
                 user=user,
@@ -241,18 +235,31 @@ class Command(BaseCommand):
                 raise CommandError(
                     f"Corpus add failed for {fixture_document.key}: {error or status}"
                 )
+            embedding_present = _wait_for_document_embedding(
+                corpus_doc.id,
+                embedder_path=embedder_path,
+                dimension=dimension,
+                timeout_seconds=embedding_timeout_seconds,
+            )
+            corpus_doc.refresh_from_db()
 
-        analysis_doc = source_doc
+        analysis_doc = corpus_doc or source_doc
         text_length = _document_text_length(analysis_doc)
-        annotation_count = Annotation.objects.filter(document=analysis_doc).count()
+        annotation_filter = _annotation_filter(analysis_doc)
+        annotation_embedding_filter = _annotation_embedding_filter(analysis_doc)
+        relationship_filter = _relationship_filter(analysis_doc)
+        relationship_embedding_filter = _relationship_embedding_filter(analysis_doc)
+        annotation_count = Annotation.objects.filter(**annotation_filter).count()
         annotation_embedding_count = Embedding.objects.filter(
-            annotation__document=analysis_doc,
+            annotation__isnull=False,
+            **annotation_embedding_filter,
             embedder_path=embedder_path,
             **{f"vector_{dimension}__isnull": False},
         ).count()
-        relationship_count = Relationship.objects.filter(document=analysis_doc).count()
+        relationship_count = Relationship.objects.filter(**relationship_filter).count()
         relationship_embedding_count = Embedding.objects.filter(
-            relationship__document=analysis_doc,
+            relationship__isnull=False,
+            **relationship_embedding_filter,
             embedder_path=embedder_path,
             **{f"vector_{dimension}__isnull": False},
         ).count()
@@ -314,6 +321,30 @@ def _document_text_length(document: Document) -> int:
     with document.txt_extract_file.open("rb") as handle:
         data = handle.read()
     return len(data.decode("utf-8", errors="replace"))
+
+
+def _annotation_filter(document: Document) -> dict[str, Any]:
+    if document.structural_annotation_set_id:
+        return {"structural_set": document.structural_annotation_set}
+    return {"document": document}
+
+
+def _annotation_embedding_filter(document: Document) -> dict[str, Any]:
+    if document.structural_annotation_set_id:
+        return {"annotation__structural_set": document.structural_annotation_set}
+    return {"annotation__document": document}
+
+
+def _relationship_filter(document: Document) -> dict[str, Any]:
+    if document.structural_annotation_set_id:
+        return {"structural_set": document.structural_annotation_set}
+    return {"document": document}
+
+
+def _relationship_embedding_filter(document: Document) -> dict[str, Any]:
+    if document.structural_annotation_set_id:
+        return {"relationship__structural_set": document.structural_annotation_set}
+    return {"relationship__document": document}
 
 
 def _default_report_path(timestamp: str, run_id: str) -> Path:
