@@ -845,8 +845,7 @@ class PydanticAICoreAgent(CoreAgentBase, TimelineStreamMixin):
 
         llm_response_content = str(run_result.output)
         sources = [
-            self._normalise_source(s)
-            for s in _extract_tool_return_sources(run_result)
+            self._normalise_source(s) for s in _extract_tool_return_sources(run_result)
         ]
         usage_data = _usage_to_dict(run_result.usage())
         timeline = _extract_tool_call_timeline(run_result)
