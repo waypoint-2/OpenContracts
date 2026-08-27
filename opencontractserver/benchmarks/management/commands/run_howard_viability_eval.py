@@ -21,6 +21,7 @@ from opencontractserver.benchmarks.adapters.howard_contract_suite import (
 )
 from opencontractserver.corpuses.models import Corpus
 from opencontractserver.corpuses.services.corpus_documents import CorpusDocumentService
+from opencontractserver.documents.document_service import DocumentService
 from opencontractserver.documents.models import Document, DocumentProcessingStatus
 from opencontractserver.types.enums import PermissionTypes
 from opencontractserver.utils.permissioning import set_permissions_for_obj_to_user
@@ -195,9 +196,8 @@ class Command(BaseCommand):
         upload_filename = f"{run_id}-{fixture_document.filename}"
         self.stdout.write(f"Uploading {upload_filename}")
 
-        corpus_doc, status, error = CorpusDocumentService.upload_document_to_corpus(
+        source_doc, error = DocumentService.create_document(
             user=user,
-            corpus=corpus,
             file_bytes=source_path.read_bytes(),
             filename=upload_filename,
             title=fixture_document.title,
@@ -209,36 +209,50 @@ class Command(BaseCommand):
             },
             is_public=False,
         )
-        if corpus_doc is None:
+        if source_doc is None:
             raise CommandError(
-                f"Upload failed for {fixture_document.key}: {error or status}"
+                f"Upload failed for {fixture_document.key}: {error or 'unknown error'}"
             )
 
         processing_status = _wait_for_processing(
-            corpus_doc.id, timeout_seconds=timeout_seconds
+            source_doc.id, timeout_seconds=timeout_seconds
         )
-        corpus_doc.refresh_from_db()
+        source_doc.refresh_from_db()
 
         embedding_present = False
         if processing_status == DocumentProcessingStatus.COMPLETED:
             embedding_present = _wait_for_document_embedding(
-                corpus_doc.id,
+                source_doc.id,
                 embedder_path=embedder_path,
                 dimension=dimension,
                 timeout_seconds=embedding_timeout_seconds,
             )
-            corpus_doc.refresh_from_db()
+            source_doc.refresh_from_db()
 
-        text_length = _document_text_length(corpus_doc)
-        annotation_count = Annotation.objects.filter(document=corpus_doc).count()
+        corpus_doc = None
+        status = "not_added"
+        if processing_status == DocumentProcessingStatus.COMPLETED:
+            corpus_doc, status, error = CorpusDocumentService.add_document_to_corpus(
+                user=user,
+                document=source_doc,
+                corpus=corpus,
+            )
+            if corpus_doc is None:
+                raise CommandError(
+                    f"Corpus add failed for {fixture_document.key}: {error or status}"
+                )
+
+        analysis_doc = source_doc
+        text_length = _document_text_length(analysis_doc)
+        annotation_count = Annotation.objects.filter(document=analysis_doc).count()
         annotation_embedding_count = Embedding.objects.filter(
-            annotation__document=corpus_doc,
+            annotation__document=analysis_doc,
             embedder_path=embedder_path,
             **{f"vector_{dimension}__isnull": False},
         ).count()
-        relationship_count = Relationship.objects.filter(document=corpus_doc).count()
+        relationship_count = Relationship.objects.filter(document=analysis_doc).count()
         relationship_embedding_count = Embedding.objects.filter(
-            relationship__document=corpus_doc,
+            relationship__document=analysis_doc,
             embedder_path=embedder_path,
             **{f"vector_{dimension}__isnull": False},
         ).count()
@@ -247,11 +261,12 @@ class Command(BaseCommand):
             "fixture_key": fixture_document.key,
             "title": fixture_document.title,
             "source_url": fixture_document.source_url,
-            "document_id": corpus_doc.id,
+            "document_id": analysis_doc.id,
+            "corpus_document_id": corpus_doc.id if corpus_doc else None,
             "upload_status": status,
             "processing_status": processing_status,
-            "processing_error": corpus_doc.processing_error,
-            "page_count": corpus_doc.page_count,
+            "processing_error": analysis_doc.processing_error,
+            "page_count": analysis_doc.page_count,
             "text_length": text_length,
             "annotation_count": annotation_count,
             "annotation_embedding_count": annotation_embedding_count,

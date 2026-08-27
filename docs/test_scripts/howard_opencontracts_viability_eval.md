@@ -48,8 +48,11 @@ python manage.py run_howard_viability_eval \
 ```
 
 The command creates a fresh corpus, uploads each PDF through
-`CorpusDocumentService.upload_document_to_corpus`, waits for parsing, waits for
-document embeddings, and writes `benchmark_runs/.../ingest_report.json`.
+`DocumentService.create_document`, waits for parsing, waits for document
+embeddings, then adds the processed document to the corpus through
+`CorpusDocumentService.add_document_to_corpus`. This order matches the
+corpus-isolated copy model, where corpus documents inherit completed parsing
+artifacts from their source document.
 
 The command intentionally verifies document embeddings with:
 
