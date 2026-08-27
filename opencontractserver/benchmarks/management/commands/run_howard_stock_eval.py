@@ -354,7 +354,9 @@ def _topic_instruction(question: HowardQuestion) -> str:
         return (
             "Party questions must distinguish the MSA parties from the SOW and "
             "Amendment parties; do not apply TRX Germany GmbH to the MSA unless "
-            "the MSA text itself says so."
+            "the MSA text itself says so. Use targeted searches only for party "
+            "names, preambles, definitions, and signature blocks; do not use "
+            "load_document_text for party questions."
         )
     if "fully disclose" in text or "redactions" in text:
         return (
