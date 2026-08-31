@@ -284,6 +284,7 @@ class AgentConfig:
     # forwarded here.  Useful for bubbling nested streams up to the
     # WebSocket layer while a tool call blocks the parent LLM.
     stream_observer: Optional[Callable[[Any], Awaitable[None]]] = None
+    include_nested_tool_timeline: bool = True
 
     # Enhanced conversation management
     conversation: Optional[Conversation] = None

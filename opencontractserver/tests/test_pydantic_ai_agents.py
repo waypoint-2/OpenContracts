@@ -1,5 +1,7 @@
 """Tests for PydanticAI agent implementations following modern patterns."""
 
+import asyncio
+import json
 import os
 import random
 from dataclasses import dataclass
@@ -13,6 +15,7 @@ from django.utils import timezone
 from pydantic import BaseModel
 from pydantic_ai.agent import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import ModelRequest, ToolReturnPart
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
@@ -114,6 +117,101 @@ class _DummyStreamResult:
     def all_messages(self):  # noqa: D401 – simple passthrough
         """Return an empty message history for tests that don't need it."""
         return []
+
+
+def test_extract_tool_return_sources_from_non_streaming_run() -> None:
+    """Non-streaming citations come from ToolReturnPart, not result.sources."""
+
+    similarity_source = {
+        "annotation_id": 101,
+        "document_id": 7,
+        "corpus_id": 3,
+        "page": 4,
+        "content": "The agreement renews automatically.",
+        "json": {"p": {"4": {"b": [10.0, 20.0, 30.0, 40.0]}}},
+        "similarity_score": 0.93,
+    }
+    exact_source = {
+        "annotation_id": -102,
+        "document_id": 7,
+        "corpus_id": 3,
+        "page": 9,
+        "content": "Either party may terminate upon thirty days' notice.",
+        "json": {"p": {"9": {"b": [11.0, 21.0, 31.0, 41.0]}}},
+        "similarity_score": 1.0,
+    }
+
+    current = ModelRequest(
+        parts=[
+            ToolReturnPart(
+                tool_name="similarity_search",
+                content=[similarity_source],
+                tool_call_id="semantic",
+            ),
+            ToolReturnPart(
+                tool_name="search_exact_text",
+                content=json.dumps([exact_source, similarity_source]),
+                tool_call_id="exact",
+            ),
+            ToolReturnPart(
+                tool_name="load_document_text",
+                content=json.dumps([{"annotation_id": 999}]),
+                tool_call_id="reader",
+            ),
+        ]
+    )
+    prior = ModelRequest(
+        parts=[
+            ToolReturnPart(
+                tool_name="similarity_search",
+                content=json.dumps([{"annotation_id": 1}]),
+                tool_call_id="prior",
+            )
+        ]
+    )
+
+    class _Run:
+        output = "answer"
+
+        def new_messages(self):
+            return [current]
+
+        def all_messages(self):
+            return [prior, current]
+
+    assert pa_mod._extract_tool_return_sources(_Run()) == [
+        similarity_source,
+        exact_source,
+    ]
+
+
+def test_similarity_search_fills_structural_annotation_document_id() -> None:
+    """Document-scoped search identifies structural annotations' document."""
+
+    structural_source = {
+        "annotation_id": 12,
+        "document_id": None,
+        "corpus_id": 1,
+        "page": 1,
+        "content": "The agreement terminates before closing.",
+        "json": {"p": {"1": {"b": [1.0, 2.0, 3.0, 4.0]}}},
+        "similarity_score": 0.91,
+    }
+
+    vector_store = MagicMock()
+    vector_store.document_id = 7
+    vector_store.similarity_search = AsyncMock(return_value=[structural_source])
+    ctx = MagicMock()
+    ctx.deps.retrieved_annotation_ids = []
+
+    tool = pa_mod._make_similarity_search_tool(vector_store)
+    result = asyncio.run(tool(ctx, "termination rights"))
+
+    assert result[0]["document_id"] == 7
+    assert result[0]["annotation_id"] == 12
+    assert result[0]["json"] == structural_source["json"]
+    assert result[0]["similarity_score"] == 0.91
+    assert ctx.deps.retrieved_annotation_ids == [12]
 
 
 @pytest.mark.serial

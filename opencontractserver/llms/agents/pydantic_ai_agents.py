@@ -150,9 +150,23 @@ def _make_similarity_search_tool(vector_store: Any, default_k: int = 8) -> Calla
         results = await vector_store.similarity_search(
             query, k=k, modalities=modalities
         )
+        scoped_document_id = getattr(vector_store, "document_id", None)
         for r in results:
             if not isinstance(r, dict):
                 continue
+            # Structural annotations are shared through a
+            # StructuralAnnotationSet, so their direct ``document_id`` is
+            # legitimately null.  A document-scoped vector store still has
+            # an unambiguous owning document; surface that real scope ID in
+            # the tool return so citations retain their document identity.
+            # Corpus-scoped stores have no such fallback and remain unchanged.
+            if (
+                r.get("document_id") is None
+                and isinstance(scoped_document_id, int)
+                and not isinstance(scoped_document_id, bool)
+                and scoped_document_id > 0
+            ):
+                r["document_id"] = scoped_document_id
             aid = r.get("annotation_id")
             # Real annotation PKs are positive ints; synthetic / ad-hoc
             # match IDs are negative and must not be persisted.
@@ -831,7 +845,7 @@ class PydanticAICoreAgent(CoreAgentBase, TimelineStreamMixin):
 
         llm_response_content = str(run_result.output)
         sources = [
-            self._normalise_source(s) for s in getattr(run_result, "sources", [])
+            self._normalise_source(s) for s in _extract_tool_return_sources(run_result)
         ]
         usage_data = _usage_to_dict(run_result.usage())
         timeline = _extract_tool_call_timeline(run_result)
@@ -3496,7 +3510,11 @@ class PydanticAICorpusAgent(PydanticAICoreAgent):
             return DocAnswer(
                 answer=accumulated_answer,
                 sources=captured_sources,
-                timeline=captured_timeline,
+                timeline=(
+                    captured_timeline
+                    if getattr(config, "include_nested_tool_timeline", True)
+                    else []
+                ),
             ).model_dump()
 
         list_docs_tool_wrapped = PydanticAIToolFactory.from_function(
@@ -3746,6 +3764,98 @@ def _extract_tool_call_timeline(run_result: Any) -> list[dict[str, Any]]:
             )
 
     return timeline
+
+
+def _extract_tool_return_sources(run_result: Any) -> list[dict[str, Any]]:
+    """Extract citation records from a non-streaming Pydantic AI run.
+
+    ``AgentRunResult`` does not expose a ``sources`` attribute. Citation-producing
+    tools instead record their return values in ``ToolReturnPart`` instances in
+    the run's messages. Read only the messages created by this run, then retain
+    the complete source mappings returned by ``similarity_search`` and
+    ``search_exact_text`` so annotation/document IDs, page, excerpt, geometry,
+    and similarity score survive normalisation unchanged.
+
+    Tool return content may be a native Python value or a JSON string depending
+    on the Pydantic AI/model adapter version. Malformed and unrelated tool
+    returns are ignored rather than breaking the chat response.
+    """
+
+    messages_fn = getattr(run_result, "new_messages", None)
+    if not callable(messages_fn):
+        messages_fn = getattr(run_result, "all_messages", None)
+    if not callable(messages_fn):
+        return []
+
+    try:
+        messages = messages_fn()
+    except Exception:
+        logger.warning(
+            "[_extract_tool_return_sources] Failed to read run_result messages",
+            exc_info=True,
+        )
+        return []
+
+    sources: list[dict[str, Any]] = []
+    seen_annotation_ids: set[int] = set()
+
+    for message in messages or []:
+        for part in getattr(message, "parts", None) or []:
+            if not isinstance(part, ToolReturnPart):
+                continue
+
+            content = _decode_tool_return_content(part.content)
+            if part.tool_name in {"similarity_search", "search_exact_text"}:
+                raw_sources = _sources_from_search_tool_return(content)
+            elif part.tool_name == "ask_document":
+                raw_sources = _sources_from_ask_document_return(content)
+            else:
+                continue
+
+            for source in raw_sources:
+                if hasattr(source, "model_dump"):
+                    source = source.model_dump()
+                if not isinstance(source, dict):
+                    continue
+
+                annotation_id = source.get("annotation_id")
+                if (
+                    not isinstance(annotation_id, int)
+                    or isinstance(annotation_id, bool)
+                    # Zero is the invalid/missing sentinel. Positive IDs are
+                    # persisted annotations; negative IDs are valid synthetic
+                    # citations produced by search_exact_text.
+                    or annotation_id == 0
+                    or annotation_id in seen_annotation_ids
+                ):
+                    continue
+
+                seen_annotation_ids.add(annotation_id)
+                sources.append(source)
+
+    return sources
+
+
+def _decode_tool_return_content(content: Any) -> Any:
+    if isinstance(content, str):
+        try:
+            return json.loads(content)
+        except (TypeError, ValueError):
+            return content
+    return content
+
+
+def _sources_from_search_tool_return(content: Any) -> list[Any]:
+    if isinstance(content, dict):
+        content = content.get("results", content.get("sources", []))
+    return content if isinstance(content, list) else []
+
+
+def _sources_from_ask_document_return(content: Any) -> list[Any]:
+    if not isinstance(content, dict):
+        return []
+    raw_sources = content.get("sources", [])
+    return raw_sources if isinstance(raw_sources, list) else []
 
 
 def _usage_to_dict(usage: Any) -> Optional[dict[str, Any]]:

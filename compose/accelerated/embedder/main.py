@@ -145,6 +145,7 @@ def generate_embeddings_batch():
     if not all_non_empty_strings(texts):
         return jsonify({"error": "All texts must be non-empty strings"}), 400
 
+    app.logger.info("Embedding text batch with %d items", len(texts))
     embeddings_list = text_batcher.submit(texts)
     return jsonify({"embeddings": [emb.tolist() for emb in embeddings_list]}), 200
 

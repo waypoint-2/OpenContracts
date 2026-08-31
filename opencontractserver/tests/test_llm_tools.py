@@ -41,6 +41,7 @@ from opencontractserver.llms.tools.core_tools import (
     update_document_note,
     update_document_summary,
 )
+from opencontractserver.llms.tools.core_tools.search import _find_normalized_matches
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -598,6 +599,29 @@ class TestLLMTools(TestCase):
             update_document_description(
                 document_id=999999,
                 new_description="New description",
+            )
+
+    def test_pdf_exact_search_normalizes_text_and_preserves_offsets(self):
+        """PDF matching tolerates extraction whitespace and curly apostrophes."""
+        document_text = (
+            "Columbia may terminate for Service\u00a0Provider\u2019s breach upon "
+            "ten days written notice.\n"
+            "Service Provider may terminate for Columbia\u2019s breach upon "
+            "thirty days written notice."
+        )
+        queries = [
+            "Columbia may terminate for Service Provider's breach upon ten days written notice.",
+            "Service Provider may terminate for Columbia's breach upon thirty days written notice.",
+        ]
+
+        matches = [_find_normalized_matches(document_text, query) for query in queries]
+
+        self.assertEqual([len(result) for result in matches], [1, 1])
+        for query, [(start, end)] in zip(queries, matches, strict=True):
+            matched_text = document_text[start:end]
+            self.assertEqual(
+                " ".join(matched_text.replace("\u2019", "'").split()),
+                query,
             )
 
     # ------------------------------------------------------------------

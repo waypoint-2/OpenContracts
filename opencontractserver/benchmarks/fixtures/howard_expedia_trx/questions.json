@@ -1,0 +1,131 @@
+{
+  "id": "howard-expedia-trx-questions-v1",
+  "answer_contract": {
+    "required_fields": [
+      "claim",
+      "source_document",
+      "source_location",
+      "supporting_text",
+      "confidence",
+      "conflicts",
+      "unknowns"
+    ],
+    "rules": [
+      "Every substantive claim must cite stored text from OpenContracts.",
+      "If the documents are redacted or silent, answer with explicit uncertainty.",
+      "For cross-document questions, identify which document controls and why."
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q01",
+      "scope": "cross_document",
+      "question": "Who are the parties across the MSA, the 2008 SOW, and Amendment No. 2, and which TRX entities are bound by each document?",
+      "expected_ground_truth_ids": ["GT_PARTIES_MSA", "GT_PARTIES_SOW", "GT_PARTIES_AMENDMENT"],
+      "requires_cross_document_reasoning": true
+    },
+    {
+      "id": "Q02",
+      "scope": "cross_document",
+      "question": "What are the effective dates of the MSA, the amended and restated SOW, and Amendment No. 2?",
+      "expected_ground_truth_ids": ["GT_EFFECTIVE_DATES"],
+      "requires_cross_document_reasoning": true
+    },
+    {
+      "id": "Q03",
+      "scope": "msa_2007",
+      "question": "What is the initial term of the MSA and how does renewal work?",
+      "expected_ground_truth_ids": ["GT_MSA_TERM_RENEWAL"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q04",
+      "scope": "sow_2008",
+      "question": "What prior agreement or SOW does the 2008 amended and restated SOW supersede?",
+      "expected_ground_truth_ids": ["GT_SOW_PRIOR_SUPERSESSION"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q05",
+      "scope": "cross_document",
+      "question": "If the MSA and 2008 SOW conflict about services under the SOW, which document controls?",
+      "expected_ground_truth_ids": ["GT_MSA_SOW_PRECEDENCE"],
+      "requires_cross_document_reasoning": true
+    },
+    {
+      "id": "Q06",
+      "scope": "amendment_2011",
+      "question": "Which provision does Amendment No. 2 replace, and when does that replacement become effective?",
+      "expected_ground_truth_ids": ["GT_AMENDMENT_REPLACES_SECTION_1_1"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q07",
+      "scope": "cross_document",
+      "question": "After October 31, 2011, what scope provision should control the contact center SOW?",
+      "expected_ground_truth_ids": ["GT_AMENDMENT_REPLACES_SECTION_1_1", "GT_AMENDMENT_CONTINUING_EFFECT"],
+      "requires_cross_document_reasoning": true
+    },
+    {
+      "id": "Q08",
+      "scope": "sow_2008",
+      "question": "What termination rights does Expedia have under the 2008 SOW beyond the MSA termination rights?",
+      "expected_ground_truth_ids": ["GT_SOW_TERMINATION_RIGHTS"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q09",
+      "scope": "msa_2007",
+      "question": "How are service fees invoiced and paid under the MSA?",
+      "expected_ground_truth_ids": ["GT_MSA_PAYMENT_MECHANICS"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q10",
+      "scope": "sow_2008",
+      "question": "What does the 2008 SOW say about pricing and annual charge adjustments?",
+      "expected_ground_truth_ids": ["GT_SOW_PRICING"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q11",
+      "scope": "sow_2008",
+      "question": "What operational deployment deadlines are stated in the 2008 SOW?",
+      "expected_ground_truth_ids": ["GT_SOW_OPERATIONAL_DEADLINES"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q12",
+      "scope": "amendment_2011",
+      "question": "What transition or cooperation timeline does Amendment No. 2 state?",
+      "expected_ground_truth_ids": ["GT_AMENDMENT_TRANSITION_TIMELINE"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q13",
+      "scope": "cross_document",
+      "question": "Do the documents fully disclose the prices, volumes, service locations, and detailed services? If not, what is unknown because of redactions?",
+      "expected_ground_truth_ids": ["GT_REDACTIONS_UNKNOWN"],
+      "requires_cross_document_reasoning": true
+    },
+    {
+      "id": "Q14",
+      "scope": "sow_2008",
+      "question": "Where the 2008 SOW contains English and German text, which language controls interpretation?",
+      "expected_ground_truth_ids": ["GT_SOW_LANGUAGE_PRECEDENCE"],
+      "requires_cross_document_reasoning": false
+    },
+    {
+      "id": "Q15",
+      "scope": "cross_document",
+      "question": "Summarize the current controlling relationship among the MSA, the 2008 amended and restated SOW, and Amendment No. 2.",
+      "expected_ground_truth_ids": [
+        "GT_MSA_SOW_PRECEDENCE",
+        "GT_SOW_PRIOR_SUPERSESSION",
+        "GT_AMENDMENT_REPLACES_SECTION_1_1",
+        "GT_AMENDMENT_CONTINUING_EFFECT"
+      ],
+      "requires_cross_document_reasoning": true
+    }
+  ]
+}

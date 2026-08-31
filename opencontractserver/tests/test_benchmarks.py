@@ -24,6 +24,7 @@ from opencontractserver.benchmarks.adapters.legalbench_rag import (
     LEGALBENCH_RAG_SUBSETS,
     LegalBenchRAGAdapter,
 )
+from opencontractserver.benchmarks.howard_scoring import score_howard_stock_eval
 from opencontractserver.benchmarks.loader import load_benchmark_into_corpus
 from opencontractserver.benchmarks.metrics import (
     char_f1,
@@ -105,6 +106,56 @@ class MetricsTestCase(PyUnitTestCase):
         # |intersection| / |union| = 5 / 15
         self.assertAlmostEqual(char_iou([(0, 10)], [(5, 15)]), 5 / 15, places=4)
         self.assertEqual(char_iou([], []), 0.0)
+
+
+class HowardScoringTestCase(PyUnitTestCase):
+    """Howard fixture scorer keeps retrieval coverage separate from accuracy."""
+
+    def test_scoring_separates_source_coverage_from_claim_correctness(self):
+        report = {
+            "corpus_id": 4,
+            "question_count": 1,
+            "results": [
+                {
+                    "id": "Q11",
+                    "question": "What operational deployment deadlines are stated in the 2008 SOW?",
+                    "answer": (
+                        "TRX will deploy workforce management software by March 31, "
+                        "2008, and quality assurance, a business analyst, and a "
+                        "dedicated trainer by February 29, 2008."
+                    ),
+                    "sources": [
+                        {
+                            "annotation_id": 3912,
+                            "content": "later than March 31, 2008",
+                        },
+                        {
+                            "annotation_id": 3913,
+                            "content": "on or before July 1, 2008, TRX will deploy",
+                        },
+                        {
+                            "annotation_id": 3917,
+                            "content": "no later than February 29, 2008",
+                        },
+                    ],
+                }
+            ],
+        }
+        report_path = Path(self._testMethodName + ".json")
+        try:
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+
+            scored = score_howard_stock_eval(report_path)
+            q11 = next(row for row in scored["questions"] if row["question_id"] == "Q11")
+            gt = q11["ground_truth_results"][0]
+
+            self.assertTrue(gt["source_covered"])
+            self.assertFalse(gt["correct"])
+            self.assertIn("july 1, 2008", gt["missing_correct_terms"])
+            self.assertIn("model_reasoning", q11["failure_categories"])
+            self.assertNotIn("retrieval_or_reranking", q11["failure_categories"])
+        finally:
+            report_path.unlink(missing_ok=True)
 
 
 # --------------------------------------------------------------------------- #

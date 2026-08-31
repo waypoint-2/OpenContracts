@@ -13,6 +13,53 @@ if TYPE_CHECKING:
     from opencontractserver.llms.agents.core_agents import SourceNode
 
 
+_APOSTROPHE_EQUIVALENTS = {"\u2018", "\u2019", "\u02bc", "\uff07"}
+
+
+def _normalize_text_with_offsets(text: str) -> tuple[str, list[int]]:
+    """Normalize PDF-search text and map normalized chars to original offsets."""
+    normalized: list[str] = []
+    original_offsets: list[int] = []
+
+    for offset, character in enumerate(text):
+        if character.isspace():
+            if normalized and normalized[-1] != " ":
+                normalized.append(" ")
+                original_offsets.append(offset)
+            continue
+
+        if character in _APOSTROPHE_EQUIVALENTS:
+            character = "'"
+        normalized.append(character)
+        original_offsets.append(offset)
+
+    return "".join(normalized), original_offsets
+
+
+def _find_normalized_matches(text: str, query: str) -> list[tuple[int, int]]:
+    """Return original start/end spans for normalized query matches."""
+    normalized_text, offsets = _normalize_text_with_offsets(text)
+    normalized_query, _ = _normalize_text_with_offsets(query)
+    normalized_query = normalized_query.strip()
+    if not normalized_query:
+        return []
+
+    matches: list[tuple[int, int]] = []
+    start_idx = 0
+    while True:
+        pos = normalized_text.find(normalized_query, start_idx)
+        if pos == -1:
+            break
+
+        normalized_end = pos + len(normalized_query)
+        original_start = offsets[pos]
+        original_end = offsets[normalized_end - 1] + 1
+        matches.append((original_start, original_end))
+        start_idx = normalized_end
+
+    return matches
+
+
 def search_exact_text_as_sources(
     document_id: int,
     search_strings: list[str],
@@ -80,16 +127,12 @@ def search_exact_text_as_sources(
         pdf_layer = build_translation_layer(pawls_tokens)
         doc_text = pdf_layer.doc_text
 
-        # Find all matches for each search string
+        # PDF extraction commonly introduces non-breaking/repeated whitespace
+        # and typographic apostrophes. Match against a normalized view, then
+        # translate each match back to original offsets before asking PlasmaPDF
+        # for page and geometry data.
         for search_str in search_strings:
-            start_idx = 0
-            while True:
-                pos = doc_text.find(search_str, start_idx)
-                if pos == -1:
-                    break
-
-                end_idx = pos + len(search_str)
-
+            for pos, end_idx in _find_normalized_matches(doc_text, search_str):
                 # Create TextSpan and SpanAnnotation to get bounding box info
                 span = TextSpan(
                     id=str(uuid4()),
@@ -112,7 +155,7 @@ def search_exact_text_as_sources(
                     SourceNode(
                         annotation_id=synthetic_id_counter,
                         content=doc_text[pos:end_idx],
-                        similarity_score=1.0,  # Perfect match
+                        similarity_score=1.0,  # Exact after PDF normalization
                         metadata={
                             "document_id": document_id,
                             "corpus_id": corpus_id,
@@ -130,7 +173,6 @@ def search_exact_text_as_sources(
                 )
 
                 synthetic_id_counter -= 1
-                start_idx = end_idx
 
     elif file_type in {"application/txt", "text/plain"}:
         if not doc.txt_extract_file:
